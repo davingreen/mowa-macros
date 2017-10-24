@@ -1,0 +1,64 @@
+export const config = {
+  gmaps : {
+    key : 'AIzaSyCJdgFRfmvwtBPiHAwNTItmIKaUs2honzw'
+  },
+  client_id: 'mowa-services',
+  client_secret:
+    'LjVCjMKB0mhsin9N6MmPUpMw1rkp2cG0hm1L7chsXS8XCtxiRTvX7RjbPqWy6ESh',
+  users: {
+    admin: {
+      username: 'dgreen@mealsonwheelsatlanta.org',
+      password: 'axQNOJqyzaU21Iw^QxsN'
+    }
+  },
+  apps: {
+    Applications : {
+      id: 19231367,
+      token: 'ec791d2f889a4ecfa4031f70e3e36489'
+    },
+    'Call Logs': {
+      id: 19231370,
+      token: '80f484845d2c4ceaa172f28312fd2aa2'
+    },
+    Clients: {
+      id: 19231365,
+      token: '69f015adaa184637a635db12499ad0a7'
+    },
+    Subscriptions: {
+      id: 19231371,
+      token: '13f8d5bd47ee4b828f073b94f3c72142'
+    }
+  }
+}
+export const config = {
+  gmaps : {
+    key : 'AIzaSyCJdgFRfmvwtBPiHAwNTItmIKaUs2honzw'
+  },
+  client_id: 'mowa-services',
+  client_secret:
+    'LjVCjMKB0mhsin9N6MmPUpMw1rkp2cG0hm1L7chsXS8XCtxiRTvX7RjbPqWy6ESh',
+  users: {
+    admin: {
+      username: 'dgreen@mealsonwheelsatlanta.org',
+      password: 'axQNOJqyzaU21Iw^QxsN'
+    }
+  },
+  apps: {
+    Applications : {
+      id: 18136068,
+      token: '363ae5885cc24720a472ec503be0a3d2'
+    },
+    'Call Logs': {
+      id: 18135420,
+      token: 'f6585363f9b9407cba8041651c17dd38'
+    },
+    Clients: {
+      id: 17983573,
+      token: 'bacf41ced1b240a2ab4ddd749c49139d'
+    },
+    Subscriptions: {
+      id: 18293148,
+      token: 'ccbae0c0e2ba474faa7c86aa944d20f4'
+    }
+  }
+}

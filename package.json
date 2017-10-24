@@ -1,0 +1,59 @@
+{
+  "name": "mowa-macros",
+  "version": "1.0.0",
+  "description": "Macros for MOWA Podio",
+  "main": "index.js",
+  "private": true,
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-preset-env": "^1.6.0",
+    "better-npm-run": "^0.1.0"
+  },
+  "babel": {
+    "presets": [
+      [
+        "env",
+        {
+          "targets": {
+            "node": "6.11"
+          }
+        }
+      ]
+    ],
+    "sourceMaps": true,
+    "compact": true,
+    "minified": true
+  },
+  "scripts": {
+    "build" : "better-npm-run build",
+    "deploy" : "better-npm-run deploy",
+    "deploy:staging" : "better-npm-run deploy:staging",
+    "deploy:prod" : "better-npm-run deploy:prod"
+  },
+  "betterScripts": {
+    "build" : {
+      "command" : "babel src --out-dir build/functions --copy-files --source-maps",
+      "env" : {
+        "NODE_ENV" : "local"
+      }
+    },
+    "deploy" : {
+      "command" : "babel src --out-dir build/functions --copy-files --source-maps && cd build && firebase serve --only functions",
+      "env" : {
+        "NODE_ENV" : "local"
+      }
+    },
+    "deploy:staging" : {
+      "command" : "babel src --out-dir build/functions --copy-files --source-maps && cd build && firebase use staging && firebase deploy --only functions",
+      "env" : {
+        "NODE_ENV" : "staging"
+      }
+    },
+    "deploy:prod" : {
+      "command" : "babel src --out-dir build/functions --copy-files --source-maps && cd build && firebase use production && firebase deploy --only functions",
+      "env" : {
+        "NODE_ENV" : "production"
+      }
+    }
+  }
+}

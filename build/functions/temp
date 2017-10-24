@@ -1,0 +1,307 @@
+import PodioAPI from './utils/podio'
+import GoogleMaps from './utils/maps'
+import { config } from './config.testing'
+import _ from 'lodash'
+
+if (!!process.env.NODE_ENV && process.env.NODE_ENV == 'production') {
+  require('@google-cloud/debug-agent').start({
+    allowExpressions: true
+  })
+}
+// Automatically run with dummy values if in development
+/* if (process.env.NODE_ENV != 'production') {
+  //bulkUpdate()
+  */
+let end = () => {
+  return
+}
+PodioMacrosStaging(
+  {
+    body: {
+      hook_id: 6891338,
+      item_id: 670098254,
+      item_revision_id: 1,
+      type: 'item.update'
+    }
+  },
+  {
+    end: end
+  }
+)
+/* 
+async function bulkUpdate() {
+  const Podio = new PodioAPI(config)
+  await Podio.auth('user', 'admin')
+  let items = await Podio.filterItems('Clients')
+} */
+
+export async function PodioMacrosStaging(req, res) {
+  //export async function PodioMacros(req, res) {
+  if (!req || !req.body || !req.body.type) return res.end()
+  const { hook_id, item_id, item_revision_id, code } = req.body
+  const action = req.body.type
+
+  const Podio = new PodioAPI(config) // Setup a Podio connection as an admin user (determined by config.js)
+  await Podio.auth('user', 'admin') // Attempt to authorize as an admin user.
+
+  if (action == 'hook.verify') {
+    await Podio.verifyHook(hook_id, code)
+    return res.end()
+  }
+
+  let item = await Podio.getItem(item_id) // Request the item from Podio
+
+  switch (item.app.name) {
+    /* case 'Call Logs': {
+      // NEW CALL LOGS AUTOMATION and VALIDATION
+      if (action == 'item.update') {
+        // Set the criteria for checking if this call log item needs a client item created for it
+        let isNewClient =
+          item.fields['reason-for-call'].value.indexOf('New Client') !== -1 && // Is the Reason for Call a New Client?
+          !item.fields.client && // Is there already a client associated with this Call Log item?
+          item.fields['relationship-to-client'].value == 'Self' && // Is the caller going to be the client?
+          !!item.fields['full-name'] // Do we have a name for the caller?
+
+        // START CREATE CLIENT for CALL LOG
+        if (isNewClient) {
+          await Podio.auth('app', 'Clients') // Switch to the Clients app
+          let newClient = await Podio.newItem('Clients', {
+            fields: {
+              title: item.fields['full-name'], // TODO: check field external ids
+              phone: {
+                type: 'main',
+                value: !item.fields['phone-number'] ? '' : ''
+              }
+            }
+          })
+
+          await Podio.comment(newClient.item_id, {
+            type: 'item',
+            comment:
+              'This client was automatically created from this call log item: ' +
+              item.link
+          })
+          await Podio.auth('app', 'Call Logs')
+          await Podio.updateItem(item.item_id, {
+            fields: {
+              client: [newClient.item_id]
+            }
+          })
+          await Podio.comment(item.item_id, {
+            type: 'item',
+            comment:
+              'A new client item has been created for you and linked to this call. If this was a mistake, please delete this client record: ' +
+              newClient.link
+          })
+        }
+        // END CREATE CLIENT for CALL LOG
+      }
+      return res.end()
+    } */
+    case 'Clients': {
+      //Switch to the Client app
+      await Podio.auth('app', 'Clients')
+
+      let warnings = []
+
+      try {
+        warnings = !!item.fields.warnings
+          ? JSON.parse(item.fields.warnings.value)
+          : []
+      } catch (e) {}
+
+      // NEW CLIENT AUTOMATION and VALIDATIONS
+      if (action == 'item.create' || action == 'item.update') {
+        // TODO: Duplicate check
+
+        // START VALIDATE ADDRESS
+        // TODO: this only checks that address field has a value, not that it was the recently updated field
+        if (!!item.fields.address) {
+          // The address has been changed. Need to get the county and save it.
+          const maps = new GoogleMaps(config.gmaps.key)
+          let location = false
+          try {
+            location = await maps.getLocation(item.fields.address.value.value)
+          } catch (e) {
+            // TODO: Communicate this error to Podio user.
+            console.error(e)
+          }
+
+          // Remove past comments about invalid address warning.
+          if (warnings.length > 0) {
+            let prev_comment = _.find(warnings, ['type', 'invalid_address'])
+            if (!!prev_comment.id) {
+              await Podio.deleteComment(prev_comment.id)
+            }
+          }
+          // Remove any past warnings from the serialized data in the warnings field.
+          warnings = _.filter(warnings, i => {
+            return i.type != 'invalid_address'
+          })
+
+          if (!!location) {
+            await Podio.comment(
+              item.item_id,
+              'Address checked. Looks okay! :wink:'
+            )
+            if (!item.fields.address.value.map_in_sync) {
+            await Podio.updateItem(item.item_id, {
+              fields: {
+                address: {
+                  city: location.city,
+                  state: location.state,
+                  postal_code: location.postal_code,
+                  lat: location.position.lat,
+                  lng: location.position.lng,
+                  map_in_sync: true
+                },
+                county: location.county,
+                location: location.position.lat + ',' + location.position.lng,
+                warnings:
+                  warnings.length > 0
+                    ? JSON.stringify(warnings)
+                    : 'No warnings.'
+              }
+            })
+          } else {
+            await Podio.updateItem(item.item_id, {
+              fields: {
+                county: location.county,
+                location: location.position.lat + ',' + location.position.lng,
+                warnings:
+                  warnings.length > 0
+                    ? JSON.stringify(warnings)
+                    : 'No warnings.'
+              }
+            })
+
+          }
+          } else {
+            let comment = await Podio.comment(
+              item.item_id,
+              "**WARNING** Google couldn't validate that address."
+            )
+            warnings.push({
+              id: comment.comment_id,
+              type: 'invalid_address'
+            })
+            await Podio.updateItem(item.item_id, {
+              fields: {
+                warnings: JSON.stringify(warnings)
+              }
+            })
+          }
+        } else {
+          console.log('no address')
+        }
+      }
+      break
+    }
+    /* case 'Applications': {
+      // NEW and UPDATED APPLICATIONS AUTOMATIONS and VALIDATIONS
+      let has_warnings = false
+      let warnings = ''
+      if (action == 'item.create' || action == 'item.update') {
+        // START CHECK CLIENT QUALIFICATION VALIDATION
+        if (!!item.fields.client) {
+          await Podio.auth('app', 'Clients')
+          let client = await Podio.getItem(item.fields.client.value)
+          if (client.fields.status.value != 'Qualified') {
+            has_warnings = true
+            warnings +=
+              'The client associated with this application has not been marked as Qualified. Please mark the client as qualified or delete this application.'
+            await Podio.comment(item.item_id, {
+              type: 'item',
+              comment:
+                'Uh oh... This application is referencing a Client that is not "Qualified". You should update the status of the Client or delete this application.'
+            })
+          }
+        }
+        // END CHECK CLIENT QUALIFICATION VALIDATION
+      }
+      // START CREATE SUBSCRIPTION ITEM for APPROVED APPLICATIONS
+      // TODO: Automatically create subscription item
+      // END CREATE SUBSCRIPTION ITEM for APPROVED APPLICATIONS
+
+      // Save any warnings to the application item or remove past warnings
+      if (has_warnings) {
+        await Podio.updateItem(item.item_id, {
+          fields: {
+            warnings: warnings
+          }
+        })
+      } else {
+        await Podio.updateItem(item.item_id, {
+          fields: {
+            warnings: null
+          }
+        })
+      }
+      return res.end()
+    } */
+    /* case 'Subscriptions': {
+      // NEW and UPDATED SUBSCRIPTIONS AUTOMATIONS and VALIDATIONS
+      let has_warnings = false
+      let warnings = ''
+      if (action == 'item.create' || action == 'item.update') {
+        // START CHECK CLIENT QUALIFICATION VALIDATION
+        await Podio.auth('app', 'Subscriptions')
+        if (!!item.fields.clients) {
+          let client = await Podio.getItem(item.fields.clients.value)
+          if (client.fields.status.value != 'Qualified') {
+            has_warnings = true
+            warnings +=
+              'The client associated with this subscription has not been marked as Qualified. Please mark the client as qualified or delete this subscription.'
+            await Podio.comment(item.item_id, {
+              type: 'item',
+              comment:
+                'Uh oh... This subscription is referencing a Client that is not "Qualified". You should update the status of the Client or delete this subscription.'
+            })
+          }
+        }
+        // END CHECK CLIENT QUALIFICATION VALIDATION
+        // START CHECK APPLICATION APPROVAL VALIDATION
+        if (!!item.fields.application) {
+          let application = await Podio.getItem(item.fields.application.value)
+          if (application.fields.status.value != 'Approved') {
+            has_warnings = true
+            warnings +=
+              'The application associated with this subscription has not been marked as Approved. Please mark the application as approved or delete this subscription.'
+            await Podio.comment(item.item_id, {
+              type: 'item',
+              comment:
+                'Uh oh... This subscription is referencing an Application that is not "Approved". You should update the status of the Application or delete this subscription.'
+            })
+          }
+        }
+        // END CHECK APPLICATION APPROVAL VALIDATION
+      }
+
+      // TODO: If set to active, make sure there is a start date
+      // TODO: If set to active, make sure it has a route, number of meals, and delivery days set
+      // TODO: If set to anything besides active, check for shceduled deliveries, notify if found
+
+      // Save any warnings to the application item or remove past warnings
+      if (has_warnings) {
+        await Podio.updateItem(item.item_id, {
+          fields: {
+            warnings: warnings
+          }
+        })
+      } else {
+        await Podio.updateItem(item.item_id, {
+          fields: {
+            warnings: null
+          }
+        })
+      }
+
+      return res.end()
+    } */
+    default: {
+      return res.end()
+    }
+  }
+
+  return res.end()
+}

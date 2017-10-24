@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "mowa-cloud-services-staging",
+    "staging": "mowa-cloud-services-staging",
+    "production": "mowa-cloud-services"
+  }
+}
